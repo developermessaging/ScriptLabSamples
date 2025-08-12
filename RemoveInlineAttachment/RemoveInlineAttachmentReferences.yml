@@ -1,0 +1,210 @@
+name: Manipulate attachments (Item Compose)
+description: >-
+  Adds, gets, and removes attachments from a message or an appointment in
+  Compose mode.
+host: OUTLOOK
+api_set: {}
+script:
+  content: >
+    document.getElementById("add").addEventListener("click", add);
+
+    document.getElementById("addBase64").addEventListener("click", addBase64);
+
+    document.getElementById("get").addEventListener("click", get);
+
+    document.getElementById("remove").addEventListener("click", remove);
+
+    document.getElementById("removeInline").addEventListener("click",
+    removeInline);
+
+
+    function add() {
+      const attachmentUrl = (document.getElementById("attachmentUrl") as HTMLInputElement).value;
+      Office.context.mailbox.item.addFileAttachmentAsync(
+        attachmentUrl,
+        getFileName(attachmentUrl),
+        { isInline: false },
+        (result) => {
+          console.log(result);
+        },
+      );
+    }
+
+
+    function addBase64() {
+      const base64String =
+        "iVBORw0KGgoAAAANSUhEUgAAACAAAAAgCAYAAABzenr0AAAACXBIWXMAAAsSAAALEgHS3X78AAACRUlEQVRYw82XzXHbMBCFP2F8tzsQc8Ixyh0zoiuIXIGdCsxUYKqC0B04FdiuwMoM7mGOOIXqQGoAymXhgSX+itJM9kIRFLAP+3YXD5Pdbscx5oxaAIW8Ztr6l2PWmQwF4IyaieP53qdfAqQ8CwBn1JU4vpWhrbxXQA5MZfynANmcDIAzKgcy4FKGXsVJFf3nLgKyBQptfT4KQMRz2N0fcbxqmRMDWXflx0VPnrdArq0vekQ1Dv0UeHZGNebHhwjU8AzwKM43RyZnbAf58Q6ghudeWd0Aus0+5EcMIIRi3beua0D3Nm39BEAx3i7HTK4DEBJn5YxKOnaRA5+ErpMBWMpzDvx1RuXCcxOISlufAjfC7zgAsqsvUvMAD0ApPaEtGi9AIlUzKgJo60tt/SyKRkzLrAXERluf7W1gOICWaMyB386oooOWsIHvXbSoHuUSFovtHqicUVnH3EJoeT0aQEf5/XBGlc6otIOWBXAtPeZkAIJ9Bt6cUU9tZautX2nrk3MACHYr1ZKProKRtDw4o8pzAPjWo+NtpXTTvoteDDg8noDAcwbcRedAkGdFXyk2GEDcegVAFp2gyVDHjRQ4o6q2smoqtR5Hd+qMqtoALCWUUymr1m43QMZfOaMK4C0SrMsDANJ2E5FNcbdbjHC+ENl+H0myJFbLtaq4Rt8dyPBYRQV1E40nMv9rl7xrOw3DGb+Whcqu3i/OM6CUOWvgRlufNmnLYy4m77uJI7AXtdNcTDrU71LEyv7v01/N/ovL6bmu5/8A1tNWZldH0W4AAAAASUVORK5CYII=";
+      Office.context.mailbox.item.addFileAttachmentFromBase64Async(
+        base64String,
+        "logo.png",
+        { isInline: false },
+        (result) => {
+          console.log(result);
+        },
+      );
+    }
+
+
+    function get() {
+      Office.context.mailbox.item.getAttachmentsAsync((result) => {
+        if (result.status === Office.AsyncResultStatus.Failed) {
+          console.error(result.error.message);
+          return;
+        }
+
+        if (result.value.length > 0) {
+          for (let i = 0; i < result.value.length; i++) {
+            const attachment = result.value[i];
+            let attachmentType;
+            switch (attachment.attachmentType) {
+              case Office.MailboxEnums.AttachmentType.Cloud:
+                attachmentType = "Attachment is stored in a cloud location";
+                break;
+              case Office.MailboxEnums.AttachmentType.File:
+                attachmentType = "Attachment is a file";
+                break;
+              case Office.MailboxEnums.AttachmentType.Item:
+                attachmentType = "Attachment is an Exchange item";
+                break;
+            }
+            console.log(attachment);
+          }
+        } else {
+          console.log("No attachments on this message.");
+        }
+      });
+    }
+
+
+    function remove() {
+      Office.context.mailbox.item.removeAttachmentAsync(
+        (document.getElementById("attachmentId") as HTMLInputElement).value,
+        (result) => {
+          if (result.status === Office.AsyncResultStatus.Failed) {
+            console.error(result.error.message);
+            return;
+          }
+
+          console.log(`Attachment removed successfully.`);
+        },
+      );
+    }
+
+
+    function removeInline() {
+      // For an inline image, we first need to retrieve the attachment and read its content-id
+      var attachmentId = (document.getElementById("attachmentId") as HTMLInputElement).value;
+      console.log("Attempting to remove attachment: " + attachmentId)
+
+      Office.context.mailbox.item.getAttachmentsAsync((result) => {
+        if (result.status === Office.AsyncResultStatus.Failed) {
+          console.log("Failed to retrieve attachments list.");
+          console.error(result.error.message);
+          return;
+        }
+        console.log("Retrieved attachments list.");
+
+        if (result.value.length > 0) {
+          for (let i = 0; i < result.value.length; i++) {
+            const attachment = result.value[i];
+            if (attachment.id == attachmentId) {
+              console.log("Found " + attachmentId);
+              if (!attachment.isInline) {
+                console.error("Attachment is not inline.");
+                return;
+              }
+
+              // Now we need to remove all references from the message body
+              console.log("Retrieving message body.");
+              Office.context.mailbox.item.body.getAsync(Office.CoercionType.Html, (bodyResult) => {
+                if (bodyResult.status === Office.AsyncResultStatus.Failed) {
+                  console.log(`Failed to get message body: ${bodyResult.error.message}`);
+                  return;
+                }
+                console.log("Successfully retrieved message body.");
+                var messageBody = bodyResult.value;
+
+                // Typical attachment reference:
+                // <img width=200 height=200 id="Picture_x0020_1" src="cid:image001.png@01DC0AD0.27C2B7A0">
+                //  We need to remove the whole <img> tag, and we identify it by the cid link
+
+                var cidSrc = "src=\"cid:" + attachment.name + "@";
+                console.log("Searching for references to attachment: " + cidSrc);
+                let cidStart = messageBody.indexOf(cidSrc);
+                while (cidStart > -1) {
+                  console.log("Found reference: " + cidSrc);
+                  let imgStart = messageBody.lastIndexOf("<img", cidStart);
+                  if (imgStart>-1) {
+                    console.log("Found <img start.");
+                    let imgEnd = messageBody.indexOf(">", cidStart);
+                    if (imgEnd > imgStart) {
+                      // Remove <img> element
+                      console.log("Determined <img> element: " + messageBody.substring(imgStart,imgEnd+1));
+                      messageBody = messageBody.substring(0,imgStart) + messageBody.substring(imgEnd+1);
+                    }
+                  }
+                   cidStart = messageBody.indexOf(cidSrc, cidStart+1);
+                }
+
+                console.log("Updated body:");
+                console.log(messageBody);
+
+                Office.context.mailbox.item.body.setAsync(messageBody, { coercionType: Office.CoercionType.Html}, (result) => {
+                    if (result.status == Office.AsyncResultStatus.Failed) {
+                      console.log("Failed to update message body.");
+                      return;
+                    }
+
+                  // Now remove attachment
+                  console.log("Removing inline attachment: " + attachmentId);
+                  console.log(attachment);
+                  Office.context.mailbox.item.removeAttachmentAsync(attachmentId, (result) => {
+                    if (result.status === Office.AsyncResultStatus.Failed) {
+                      console.error(result.error.message);
+                      return;
+                    }
+                    console.log(`Attachment removed successfully.`);
+                  });
+                });
+
+              }); 
+            }
+          }
+        } else {
+          console.log("No attachments on this message.");
+        }
+        console.log("Finished removing inline attachment.");
+      });
+    }
+
+
+    function getFileName(url) {
+      const lastIndex = url.lastIndexOf("/");
+      if (lastIndex >= 0) {
+        return url.substring(lastIndex + 1);
+      }
+      return url;
+    }
+  language: typescript
+template:
+  content: "<section class=\"ms-Fabric ms-font-m\">\n\t<p>This sample shows how to add, get, and remove attachments from a message or an appointment in Compose mode.</p>\n\t<p><b>Required mode</b>: Item Compose</p>\n</section>\n<section class=\"ms-Fabric samples ms-font-m\">\n\t<h3>Try it out</h3>\n\t<hr>\n\t<h4>ADD</h4>\n\t<button id=\"addBase64\" class=\"ms-Button\">\n        <div class=\"ms-Button-label\">Add attachment from Base64</div>\n    </button>\n\t<div class=\"ms-TextField\">\n\t\t<label class=\"ms-Label\">URL of attachment to add:</label>\n\t\t<input id=\"attachmentUrl\" class=\"ms-TextField-field\" type=\"text\" value=\"https://i.imgur.com/9S36xvA.jpg\" placeholder=\"\">\n  </div>\n\t\t<button id=\"add\" class=\"ms-Button\">\n    <div class=\"ms-Button-label\">Add attachment</div>\n  </button>\n\t\t<hr>\n\t\t<h4>GET</h4>\n\t\t<button id=\"get\" class=\"ms-Button\">\n    <div class=\"ms-Button-label\">Get attachments</div>\n  </button>\n\t\t<hr>\n\t\t<h4>REMOVE</h4>\n\t\t<div class=\"ms-TextField\">\n\t\t\t<label class=\"ms-Label\">ID of attachment to remove:</label>\n\t\t\t<input id=\"attachmentId\" class=\"ms-TextField-field\" type=\"text\" value=\"0\" placeholder=\"\">\n  </div>\n\t<button id=\"remove\" class=\"ms-Button\">\n    <div class=\"ms-Button-label\">Remove attachment</div>\n  </button>\n\t<button id=\"removeInline\" class=\"ms-Button\">\n\t    <div class=\"ms-Button-label\">Remove attachment and inline references</div>\n\t  </button>\n</section>"
+  language: html
+style:
+  content: |-
+    section.samples {
+        margin-top: 20px;
+    }
+
+    section.samples .ms-Button, section.setup .ms-Button {
+        display: block;
+        margin-bottom: 5px;
+        margin-left: 20px;
+        min-width: 80px;
+    }
+  language: css
+libraries: |-
+  https://appsforoffice.microsoft.com/lib/1/hosted/office.js
+  https://appsforoffice.microsoft.com/lib/1/hosted/office.d.ts
+
+  https://unpkg.com/office-ui-fabric-core@11.1.0/dist/css/fabric.min.css
+  https://unpkg.com/office-ui-fabric-js@1.5.0/dist/css/fabric.components.min.css
