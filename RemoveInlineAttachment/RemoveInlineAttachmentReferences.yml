@@ -1,4 +1,4 @@
-name: Manipulate attachments (Item Compose)
+name: Manipulate attachments (Item Compose) (3)
 description: >-
   Adds, gets, and removes attachments from a message or an appointment in
   Compose mode.
@@ -67,7 +67,25 @@ script:
                 attachmentType = "Attachment is an Exchange item";
                 break;
             }
-            console.log(attachment);
+            console.log(
+              "ID: " +
+              attachment.id +
+              "\n" +
+              "Type: " +
+              attachmentType +
+              "\n" +
+              "Name: " +
+              attachment.name +
+              "\n" +
+              "Size: " +
+              attachment.size +
+              "\n" +
+              "isInline: " +
+              attachment.isInline +
+              "\n" +
+              "contentId: " +
+              attachment.contentId,
+            );
           }
         } else {
           console.log("No attachments on this message.");
@@ -91,10 +109,10 @@ script:
     }
 
 
-    function removeInline() {
+    async function removeInline() {
       // For an inline image, we first need to retrieve the attachment and read its content-id
       var attachmentId = (document.getElementById("attachmentId") as HTMLInputElement).value;
-      console.log("Attempting to remove attachment: " + attachmentId)
+      console.log("Attempting to remove attachment: " + attachmentId);
 
       Office.context.mailbox.item.getAttachmentsAsync((result) => {
         if (result.status === Office.AsyncResultStatus.Failed) {
@@ -128,52 +146,62 @@ script:
                 // <img width=200 height=200 id="Picture_x0020_1" src="cid:image001.png@01DC0AD0.27C2B7A0">
                 //  We need to remove the whole <img> tag, and we identify it by the cid link
 
-                var cidSrc = "src=\"cid:" + attachment.name + "@";
+                var cidSrc = 'src="cid:';
+                if (attachment.contentId === null || attachment.contentId === undefined || attachment.contentId.trim() === "") {
+                  console.log("ContentId not available, falling back to attachment name (may fail)");
+                  cidSrc = cidSrc + attachment.name + "@";
+                } else {
+                  cidSrc = cidSrc + attachment.contentId;
+                }
                 console.log("Searching for references to attachment: " + cidSrc);
+
                 let cidStart = messageBody.indexOf(cidSrc);
                 while (cidStart > -1) {
                   console.log("Found reference: " + cidSrc);
                   let imgStart = messageBody.lastIndexOf("<img", cidStart);
-                  if (imgStart>-1) {
+                  if (imgStart > -1) {
                     console.log("Found <img start.");
                     let imgEnd = messageBody.indexOf(">", cidStart);
                     if (imgEnd > imgStart) {
                       // Remove <img> element
-                      console.log("Determined <img> element: " + messageBody.substring(imgStart,imgEnd+1));
-                      messageBody = messageBody.substring(0,imgStart) + messageBody.substring(imgEnd+1);
+                      console.log("Determined <img> element: " + messageBody.substring(imgStart, imgEnd + 1));
+                      messageBody = messageBody.substring(0, imgStart) + messageBody.substring(imgEnd + 1);
                     }
                   }
-                   cidStart = messageBody.indexOf(cidSrc, cidStart+1);
+                  cidStart = messageBody.indexOf(cidSrc, cidStart + 1);
                 }
 
                 console.log("Updated body:");
                 console.log(messageBody);
 
-                Office.context.mailbox.item.body.setAsync(messageBody, { coercionType: Office.CoercionType.Html}, (result) => {
+                Office.context.mailbox.item.body.setAsync(
+                  messageBody,
+                  { coercionType: Office.CoercionType.Html },
+                  (result) => {
                     if (result.status == Office.AsyncResultStatus.Failed) {
                       console.log("Failed to update message body.");
                       return;
                     }
 
-                  // Now remove attachment
-                  console.log("Removing inline attachment: " + attachmentId);
-                  console.log(attachment);
-                  Office.context.mailbox.item.removeAttachmentAsync(attachmentId, (result) => {
-                    if (result.status === Office.AsyncResultStatus.Failed) {
-                      console.error(result.error.message);
+                    // Now remove attachment
+                    console.log("Removing inline attachment: " + attachmentId);
+                    console.log(attachment);
+                    Office.context.mailbox.item.removeAttachmentAsync(attachmentId, (result) => {
+                      if (result.status === Office.AsyncResultStatus.Failed) {
+                        console.error(result.error.message);
+                        return;
+                      }
+                      console.log(`Attachment removed successfully.`);
                       return;
-                    }
-                    console.log(`Attachment removed successfully.`);
-                  });
-                });
-
-              }); 
+                    });
+                  },
+                );
+              });
             }
           }
         } else {
           console.log("No attachments on this message.");
         }
-        console.log("Finished removing inline attachment.");
       });
     }
 

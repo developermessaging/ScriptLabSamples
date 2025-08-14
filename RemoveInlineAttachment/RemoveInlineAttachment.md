@@ -60,8 +60,15 @@ function removeInline() {
             // <img width=200 height=200 id="Picture_x0020_1" src="cid:image001.png@01DC0AD0.27C2B7A0">
             //  We need to remove the whole <img> tag, and we identify it by the cid link
 
-            var cidSrc = 'src="cid:' + attachment.name + "@";
+            var cidSrc = 'src="cid:';
+            if (attachment.contentId === null || attachment.contentId === undefined || attachment.contentId.trim() === "") {
+              console.log("ContentId not available, falling back to attachment name (may fail)");
+              cidSrc = cidSrc + attachment.name + "@";
+            } else {
+              cidSrc = cidSrc + attachment.contentId;
+            }
             console.log("Searching for references to attachment: " + cidSrc);
+
             let cidStart = messageBody.indexOf(cidSrc);
             while (cidStart > -1) {
               console.log("Found reference: " + cidSrc);
@@ -108,7 +115,6 @@ function removeInline() {
     } else {
       console.log("No attachments on this message.");
     }
-    console.log("Finished removing inline attachment.");
   });
 }
 ```
